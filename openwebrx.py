@@ -50,6 +50,8 @@ import rxws
 import uuid
 import signal
 import socket
+import RTL_Thread
+import Spectrum_Thread
 
 try: import sdrhu
 except: sdrhu=False
@@ -97,7 +99,8 @@ def handle_signal(sig, frame):
     else:
         print "[openwebrx] Ctrl+C: aborting."
         cleanup_clients(True)
-        spectrum_dsp.stop()
+        if spectrum_dsp != None:
+            spectrum_dsp.stop()
         os._exit(1) #not too graceful exit
 
 def access_log(data):
@@ -144,41 +147,13 @@ def main():
     except:
         pass
 
-    #Start rtl thread
-    if os.system("csdr 2> /dev/null") == 32512: #check for csdr
-        print "[openwebrx-main] You need to install \"csdr\" to run OpenWebRX!\n"
-        return
-    if os.system("nmux --help 2> /dev/null") == 32512: #check for nmux
-        print "[openwebrx-main] You need to install an up-to-date version of \"csdr\" that contains the \"nmux\" tool to run OpenWebRX! Please upgrade \"csdr\"!\n"
-        return
-    if cfg.start_rtl_thread:
-        nmux_bufcnt = nmux_bufsize = 0
-        while nmux_bufsize < cfg.samp_rate/4: nmux_bufsize += 4096
-        while nmux_bufsize * nmux_bufcnt < cfg.nmux_memory * 1e6: nmux_bufcnt += 1
-        if nmux_bufcnt == 0 or nmux_bufsize == 0: 
-            print "[openwebrx-main] Error: nmux_bufsize or nmux_bufcnt is zero. These depend on nmux_memory and samp_rate options in config_webrx.py"
-            return
-        print "[openwebrx-main] nmux_bufsize = %d, nmux_bufcnt = %d" % (nmux_bufsize, nmux_bufcnt)
-        cfg.start_rtl_command += "| nmux --bufsize %d --bufcnt %d --port %d --address 127.0.0.1" % (nmux_bufsize, nmux_bufcnt, cfg.iq_server_port)
-        rtl_thread=threading.Thread(target = lambda:subprocess.Popen(cfg.start_rtl_command, shell=True),  args=())
-        rtl_thread.start()
-        print "[openwebrx-main] Started rtl_thread: "+cfg.start_rtl_command
-    print "[openwebrx-main] Waiting for I/Q server to start..."
-    while True:
-        testsock=socket.socket()
-        try: testsock.connect(("127.0.0.1", cfg.iq_server_port))
-        except:
-            time.sleep(0.1)
-            continue
-        testsock.close()
-        break
-    print "[openwebrx-main] I/Q server started."
 
     #Initialize clients
     clients=[]
     clients_mutex=threading.Lock()
     lock_try_time=0
 
+    rtl_thread = RTL_Thread.RTL_Thread(cfg)
     #Start watchdog thread
     print "[openwebrx-main] Starting watchdog threads."
     mutex_test_thread=threading.Thread(target = mutex_test_thread_function, args = ())
@@ -186,11 +161,11 @@ def main():
     mutex_watchdog_thread=threading.Thread(target = mutex_watchdog_thread_function, args = ())
     mutex_watchdog_thread.start()
 
-
+    #spectrum_thread = Spectrum_Thread.Spectrum_Thread(cfg, clients, cma, cmr)
     #Start spectrum thread
-    print "[openwebrx-main] Starting spectrum thread."
-    spectrum_thread=threading.Thread(target = spectrum_thread_function, args = ())
-    spectrum_thread.start()
+    #print "[openwebrx-main] Starting spectrum thread."
+    #spectrum_thread=threading.Thread(target = spectrum_thread_function, args = ())
+    #spectrum_thread.start()
     #spectrum_watchdog_thread=threading.Thread(target = spectrum_watchdog_thread_function, args = ())
     #spectrum_watchdog_thread.start()
 
@@ -323,12 +298,17 @@ def spectrum_thread_function():
         for i in range(0,len(clients)):
             i-=correction
             if (clients[i].ws_started):
+                #print "got data and have clients"
                 if clients[i].spectrum_queue.full():
                     print "[openwebrx-spectrum] client spectrum queue full, closing it."
                     close_client(i, False)
                     correction+=1
                 else:
+                    print "[openwebrx-spectrum] putting data into queue."
                     clients[i].spectrum_queue.put([data]) # add new string by "reference" to all clients
+            else:
+                print "Not queueing spectrum data - no clients"
+
         cmr()
 
 def get_client_by_id(client_id, use_mutex=True):
@@ -393,6 +373,7 @@ def close_client(i, use_mutex=True):
         print "[openwebrx] close_client dsp.stop() :: error -",exc_type,exc_value
         traceback.print_tb(exc_traceback)
     clients[i].closed[0]=True
+    print "Stopping client " + str(i)
     access_log("Stopped streaming to client: "+clients[i].ip+"#"+str(clients[i].id)+" (users now: "+str(len(clients)-1)+")")
     del clients[i]
     if use_mutex: cmr()
@@ -421,6 +402,7 @@ class WebRXHandler(BaseHTTPRequestHandler):
         self.path=path_temp_parts[0]
         request_param=path_temp_parts[1] if(len(path_temp_parts)>1) else ""
         access_log("GET "+self.path+" from "+self.client_address[0])
+        spectrum_thread = None
         try:
             if self.path=="/":
                 self.path="/index.wrx"
@@ -461,6 +443,7 @@ class WebRXHandler(BaseHTTPRequestHandler):
 
                     # ========= Initialize DSP =========
                     dsp=csdr.dsp()
+                    print "dsp_initialized set to False"
                     dsp_initialized=False
                     dsp.set_audio_compression(cfg.audio_compression)
                     dsp.set_fft_compression(cfg.fft_compression) #used by secondary chains
@@ -580,6 +563,11 @@ class WebRXHandler(BaseHTTPRequestHandler):
                                         if not dsp_initialized:
                                             myclient.loopstat=550
                                             dsp.start()
+                                            if spectrum_thread != None:
+                                                print "Stopping old spectrum thread"
+                                                spectrum_thread.stop()
+                                            spectrum_thread = Spectrum_Thread.Spectrum_Thread(cfg, clients, cma, cmr)
+                                            print "Client waterfall collection started, dsp_initialized set to True"
                                             dsp_initialized=True
                                     elif param_name=="secondary_mod" and cfg.digimodes_enable:
                                         if (dsp.get_secondary_demodulator() != param_value):
@@ -594,6 +582,26 @@ class WebRXHandler(BaseHTTPRequestHandler):
                                             if dsp_initialized: dsp.start()
                                     elif param_name=="secondary_offset_freq" and 0 <= int(param_value) <= dsp.if_samp_rate()/2 and cfg.digimodes_enable:
                                         dsp.set_secondary_offset_freq(int(param_value))
+                                    elif param_name=="new_center_frequency" and float(param_value) > 0:
+                                        value = float(param_value)
+                                        dsp.set_new_center_frequency(value)
+                                        print "***** Restarting dsp ******"
+                                        #dsp.restart()
+                                        print "***** Done Restarting dsp, closing client ******"
+                                        close_client(0, True)
+                                        rtl_thread.restart(cfg, param_value)
+                                        print "DSP restart with center frequency = " + param_value
+                                        cfg.shown_center_freq = float(param_value)
+                                        cfg.start_freq = cfg.shown_center_freq
+                                        '''
+                                        if spectrum_thread != None:
+                                            print "Terminating spectrum thread"
+                                            spectrum_thread.terminate()
+                                        spectrum_thread=threading.Thread(target = spectrum_thread_function, args = ())
+                                        print "Starting spectrum thread"
+                                        spectrum_thread.start()
+                                        '''
+
                                     else:
                                         print "[openwebrx-httpd:ws] invalid parameter"
                                 if bpf_set:
@@ -603,6 +611,8 @@ class WebRXHandler(BaseHTTPRequestHandler):
                 except:
                     myclient.loopstat=990
                     exc_type, exc_value, exc_traceback = sys.exc_info()
+                    print "[openwebrx-httpd:ws] stopping spectrum thread after exception"
+                    spectrum_thread.stop()
                     print "[openwebrx-httpd:ws] exception: ",exc_type,exc_value
                     traceback.print_tb(exc_traceback) #TODO digimodes
                     #if exc_value[0]==32: #"broken pipe", client disconnected
@@ -681,7 +691,7 @@ class WebRXHandler(BaseHTTPRequestHandler):
                         ("%[RX_ANT]",cfg.receiver_ant),
                         ("%[RX_DEVICE]",cfg.receiver_device),
                         ("%[AUDIO_BUFSIZE]",str(cfg.client_audio_buffer_size)),
-                        ("%[START_OFFSET_FREQ]",str(cfg.start_freq-cfg.center_freq)),
+                        ("%[START_OFFSET_FREQ]",str("0.0")), 
                         ("%[START_MOD]",cfg.start_mod),
                         ("%[WATERFALL_COLORS]",cfg.waterfall_colors),
                         ("%[WATERFALL_MIN_LEVEL]",str(cfg.waterfall_min_level)),
@@ -692,6 +702,9 @@ class WebRXHandler(BaseHTTPRequestHandler):
                         ("%[MATHBOX_WATERFALL_THIST]",str(cfg.mathbox_waterfall_history_length)),
                         ("%[MATHBOX_WATERFALL_COLORS]",cfg.mathbox_waterfall_colors)
                     )
+                    # not sure what this is for - setting it to zero
+                    #("%[START_OFFSET_FREQ]",str(cfg.start_freq-cfg.center_freq)),
+                    print replace_dictionary
                     for rule in replace_dictionary:
                         while data.find(rule[0])!=-1:
                             data=data.replace(rule[0],rule[1])

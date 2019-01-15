@@ -39,6 +39,7 @@ function getFirstChars(buf, num)
 
 var bandwidth;
 var center_freq;
+var proposed_center_freq;
 var audio_buffer_current_size_debug=0;
 var audio_buffer_all_size_debug=0;
 var audio_buffer_current_count_debug=0;
@@ -159,8 +160,80 @@ function setSquelchToAuto() { e("openwebrx-panel-squelch").value=(getLogSmeterVa
 function updateSquelch()
 {
 	var sliderValue=parseInt(e("openwebrx-panel-squelch").value);
-	var outputValue=(sliderValue==parseInt(e("openwebrx-panel-squelch").min))?0:getLinearSmeterValue(sliderValue);
+    var outputValue=(sliderValue==parseInt(e("openwebrx-panel-squelch").min))?0:getLinearSmeterValue(sliderValue);
 	ws.send("SET squelch_level="+outputValue.toString());
+}
+
+function updateCenterFrequency()
+{
+	var sliderValue=parseInt(e("openwebrx-panel-frequency-adjust").value);
+
+        console.log(sliderValue);
+        console.log(e("openwebrx-panel-frequency-adjust"));
+
+        proposed_center_freq = center_freq;
+        proposed_center_freq = sliderValue * 1000000.0 + proposed_center_freq;
+        if (proposed_center_freq > 1800000000.0) {
+	    proposed_center_freq = 1800000000.0;
+        } else if (proposed_center_freq < 24000000.0) {
+	    proposed_center_freq = 24000000.0
+        }
+        var displayFreq = "";
+        var suffix = " MHz";
+        var working = proposed_center_freq;
+        if (proposed_center_freq >= 1000000000.0) {
+	    displayFreq += "1.";
+	    working -= 1000000000.0
+	    suffix = " GHz";
+	    mod = 100000000.0;
+	    while (mod >= 1000000.0) {
+	        var digit = Math.floor(working / mod);
+	        displayFreq += digit.toString();
+	        working -= digit * mod;
+	        mod /= 10.0;
+	    }
+        } else {
+	    mod = 1000.0;
+	    while (working > mod) {
+	        mod *= 10.0;
+	    };
+	    if (mod > 1000.0) {
+	        mod /= 10.0;
+	        while (mod >= 1000.0) {
+		    var digit = Math.floor(working  / mod);
+		    displayFreq += digit.toString();
+		    if (mod == 1000000.0) {
+		        displayFreq += ".";
+		    }
+		    working -= digit * mod;
+		    mod /= 10.0;
+	        }
+	    } else {
+	        displayFreq = "  0.000";
+	    }
+        }
+        if (displayFreq.length < 7) {
+	    while (displayFreq.length < 7) {
+	        displayFreq = " " + displayFreq;
+	    }
+	}
+	displayFreq += suffix;
+	    
+        console.log("******** updating proposed center frequency ******");
+        e("openwebrx-frequency-adjust").innerHTML = displayFreq;
+}
+
+function sendCenterFrequency()
+{
+        center_freq = proposed_center_freq;
+        console.log("********" + center_freq);
+        ws.send("SET new_center_frequency="+center_freq.toString());
+}
+
+function displayCenterFrequency(event)
+{
+	e("openwebrx-panel-frequency-adjust").title = event.offsetX;
+        //alert(event.offsetX);
 }
 
 function updateWaterfallColors(which)
@@ -1149,7 +1222,8 @@ function on_ws_recv(evt)
 	//
 	debug_ws_data_received+=evt.data.byteLength/1000;
 	first4Chars=getFirstChars(evt.data,4);
-    first3Chars=first4Chars.slice(0,3);
+        first3Chars=first4Chars.slice(0,3);
+        //console.log("First three char of WS data: " + first3Chars);
 	if(first3Chars=="CLI")
 	{
 		var stringData=arrayBufferToString(evt.data);
@@ -1201,13 +1275,14 @@ function on_ws_recv(evt)
 				{
 					case "setup":
 						waterfall_init();
-						audio_preinit();
+				                audio_preinit();
 						break;
 					case "bandwidth":
 						bandwidth=parseInt(param[1]);
 						break;
 					case "center_freq":
-						center_freq=parseInt(param[1]); //there was no ; and it was no problem... why?
+				                center_freq=parseInt(param[1]); //there was no ; and it was no problem... why?
+				                proposed_center_freq = center_freq;
 						break;
 					case "fft_size":
 						fft_size=parseInt(param[1]);
@@ -1644,7 +1719,7 @@ function audio_init()
 	//https://github.com/grantgalitz/XAudioJS/blob/master/XAudioServer.js
 	//audio_resampler = new Resampler(audio_received_sample_rate, audio_context.sampleRate, 1, audio_buffer_size, true);
 	//audio_input_buffer_size = audio_buffer_size*(audio_received_sample_rate/audio_context.sampleRate);
-	webrx_set_param("audio_rate",audio_context.sampleRate); //Don't try to resample //TODO remove this
+	//webrx_set_param("audio_rate",audio_context.sampleRate); //Don't try to resample //TODO remove this
 
 	window.setInterval(audio_flush,audio_flush_interval_ms);
 	divlog('Web Audio API succesfully initialized, sample rate: '+audio_context.sampleRate.toString()+ " sps");

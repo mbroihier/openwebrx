@@ -587,6 +587,11 @@ input[type=range]:focus::-ms-fill-upper
 	height: 27px;
 }
 
+.openwebrx-rect-button img
+{
+	height: 27px;
+}
+
 .openwebrx-round-button
 {
 	margin-right: -2px;

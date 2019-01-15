@@ -120,13 +120,15 @@
                         <input title="Squelch" id="openwebrx-panel-squelch" class="openwebrx-panel-slider" type="range" min="-150" max="0" value="-150" step="1" onchange="updateSquelch()" oninput="updateSquelch()">
                         <div title="Set waterfall colors to default" id="openwebrx-waterfall-colors-default" class="openwebrx-button" onclick="waterfallColorsDefault()"><img src="gfx/openwebrx-waterfall-default.png" class="openwebrx-sliderbtn-img"></div>
                         <input title="Waterfall maximum level" id="openwebrx-waterfall-color-max" class="openwebrx-panel-slider" type="range" min="-200" max="100" value="50" step="1" onchange="updateWaterfallColors(1);" oninput="updateVolume()">
+                        <div title="Adjust Center Frequecy" id="openwebrx-frequency-adjust" class="openwebrx-button openwebrx-rect-button" onclick="sendCenterFrequency()">---.--- MHz</div>
+                        <input title="Center Frequency" id="openwebrx-panel-frequency-adjust" class="openwebrx-panel-slider" type="range" min="-50" max="50" value="0" step="1"  onmouseover="displayCenterFrequency(event)" oninput="updateCenterFrequency()">
                     </div>
                     <div class="openwebrx-panel-line">
                         <div class="openwebrx-button openwebrx-square-button" onclick="zoomInOneStep();"  title="Zoom in one step">  <img src="gfx/openwebrx-zoom-in.png" /></div>
                         <div class="openwebrx-button openwebrx-square-button" onclick="zoomOutOneStep();" title="Zoom out one step"> <img src="gfx/openwebrx-zoom-out.png" /></div>
                         <div class="openwebrx-button openwebrx-square-button" onclick="zoomInTotal();"  title="Zoom in totally"><img src="gfx/openwebrx-zoom-in-total.png" /></div>
                         <div class="openwebrx-button openwebrx-square-button" onclick="zoomOutTotal();" title="Zoom out totally"><img src="gfx/openwebrx-zoom-out-total.png" /></div>
-						<div class="openwebrx-button openwebrx-square-button" onclick="mathbox_toggle();" title="Toggle 3D view"><img src="gfx/openwebrx-3d-spectrum.png" /></div>
+			<div class="openwebrx-button openwebrx-square-button" onclick="mathbox_toggle();" title="Toggle 3D view"><img src="gfx/openwebrx-3d-spectrum.png" /></div>
                         <div id="openwebrx-smeter-db">0 dB</div>
                     </div>
                     <div class="openwebrx-panel-line">

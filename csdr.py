@@ -26,6 +26,7 @@ import os
 import code
 import signal
 import fcntl
+import traceback
 
 class dsp:
 
@@ -62,12 +63,16 @@ class dsp:
         self.pipe_names=["bpf_pipe", "shift_pipe", "squelch_pipe", "smeter_pipe", "iqtee_pipe", "iqtee2_pipe"]
         self.secondary_pipe_names=["secondary_shift_pipe"]
         self.secondary_offset_freq = 1000
+        self.new_center_frequency =0.0
 
     def chain(self,which):
         any_chain_base="nc -v 127.0.0.1 {nc_port} | "
         if self.csdr_dynamic_bufsize: any_chain_base+="csdr setbuf {start_bufsize} | "
         if self.csdr_through: any_chain_base+="csdr through | "
         any_chain_base+=self.format_conversion+(" | " if  self.format_conversion!="" else "") ##"csdr flowcontrol {flowcontrol} auto 1.5 10 | "
+        print "Making a new " + which + " csdr chain"
+        for line in traceback.format_stack():
+            print line.strip()
         if which == "fft":
             fft_chain_base = any_chain_base+"csdr fft_cc {fft_size} {fft_block_size} | " + \
                 ("csdr logpower_cf -70 | " if self.fft_averages == 0 else "csdr logaveragepower_cf -70 {fft_size} {fft_averages} | ") + \
@@ -89,6 +94,9 @@ class dsp:
 
     def secondary_chain(self, which):
         secondary_chain_base="cat {input_pipe} | "
+        print "Making a new " + which + " csdr secondary chain"
+        for line in traceback.format_stack():
+            print line.strip()
         if which == "fft":
             return secondary_chain_base+"csdr realpart_cf | csdr fft_fc {secondary_fft_input_size} {secondary_fft_block_size} | csdr logpower_cf -70 " + (" | csdr compress_fft_adpcm_f_u8 {secondary_fft_size}" if self.fft_compression=="adpcm" else "")
         elif which == "bpsk31":
@@ -101,6 +109,9 @@ class dsp:
 
     def set_secondary_demodulator(self, what):
         self.secondary_demodulator = what
+
+    def set_new_center_frequency(self, what):
+        self.new_center_frequency = what
 
     def secondary_fft_block_size(self):
         return (self.samp_rate/self.decimation)/(self.fft_fps*2) #*2 is there because we do FFT on real signal here
@@ -382,6 +393,7 @@ class dsp:
         return self.process.stdout.read(size)
 
     def stop(self):
+        self.process.terminate()
         os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
         self.stop_secondary_demodulator()
         #if(self.process.poll()!=None):return # returns None while subprocess is running
