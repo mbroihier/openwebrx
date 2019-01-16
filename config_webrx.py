@@ -37,7 +37,7 @@ config_webrx: configuration options for OpenWebRX
 # ==== Server settings ====
 web_port=8073
 server_hostname="localhost" # If this contains an incorrect value, the web UI may freeze on load (it can't open websocket)
-max_clients=1
+max_clients=1 # to support frequency adjustment, only allow one client to have control and use the device
 
 # ==== Web GUI configuration ====
 receiver_name="[Callsign]"

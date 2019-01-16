@@ -26,7 +26,7 @@ import os
 import code
 import signal
 import fcntl
-import traceback
+#import traceback
 
 class dsp:
 
@@ -70,9 +70,9 @@ class dsp:
         if self.csdr_dynamic_bufsize: any_chain_base+="csdr setbuf {start_bufsize} | "
         if self.csdr_through: any_chain_base+="csdr through | "
         any_chain_base+=self.format_conversion+(" | " if  self.format_conversion!="" else "") ##"csdr flowcontrol {flowcontrol} auto 1.5 10 | "
-        print "Making a new " + which + " csdr chain"
-        for line in traceback.format_stack():
-            print line.strip()
+        #print "Making a new " + which + " csdr chain"
+        #for line in traceback.format_stack():
+        #    print line.strip()
         if which == "fft":
             fft_chain_base = any_chain_base+"csdr fft_cc {fft_size} {fft_block_size} | " + \
                 ("csdr logpower_cf -70 | " if self.fft_averages == 0 else "csdr logaveragepower_cf -70 {fft_size} {fft_averages} | ") + \
@@ -94,9 +94,9 @@ class dsp:
 
     def secondary_chain(self, which):
         secondary_chain_base="cat {input_pipe} | "
-        print "Making a new " + which + " csdr secondary chain"
-        for line in traceback.format_stack():
-            print line.strip()
+        #print "Making a new " + which + " csdr secondary chain"
+        #for line in traceback.format_stack():
+        #    print line.strip()
         if which == "fft":
             return secondary_chain_base+"csdr realpart_cf | csdr fft_fc {secondary_fft_input_size} {secondary_fft_block_size} | csdr logpower_cf -70 " + (" | csdr compress_fft_adpcm_f_u8 {secondary_fft_size}" if self.fft_compression=="adpcm" else "")
         elif which == "bpsk31":

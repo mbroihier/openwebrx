@@ -51,7 +51,6 @@ class RTL_Thread (threading.Thread):
         print "[RTL thread object] Terminating " + self.pid
         try:
             os.kill(int(self.pid), 15)
-            #os.system("pkill csdr")
         except:
             pass
         time.sleep(5.0)

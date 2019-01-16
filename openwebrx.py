@@ -304,10 +304,11 @@ def spectrum_thread_function():
                     close_client(i, False)
                     correction+=1
                 else:
-                    print "[openwebrx-spectrum] putting data into queue."
+                    #print "[openwebrx-spectrum] putting data into queue."
                     clients[i].spectrum_queue.put([data]) # add new string by "reference" to all clients
             else:
-                print "Not queueing spectrum data - no clients"
+                #print "Not queueing spectrum data - no clients"
+                pass
 
         cmr()
 
