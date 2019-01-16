@@ -40,6 +40,9 @@ It has the following features:
 **News (2017-07-12)**
 - OpenWebRX now has a BPSK31 demodulator and a 3D waterfall display.
 
+**News (2018-01-16) **
+- This version of OpenWebRX only supports one client and the client can change the center frequency by sliding the center frequency slider, pressing the button displaying the frequency, and then restarting the client.
+
 > When upgrading OpenWebRX, please make sure that you also upgrade *csdr*!
 
 ## OpenWebRX servers on SDR.hu
